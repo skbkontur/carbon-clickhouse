@@ -5,19 +5,16 @@ DESCRIPTION:="Graphite metrics receiver with ClickHouse as storage"
 GO ?= go
 export GOPATH := $(CURDIR)/_vendor
 TEMPDIR:=$(shell mktemp -d)
-
-DEVEL ?= 0
-ifeq ($(DEVEL), 0)
 VERSION:=$(shell sh -c 'grep "const Version" $(NAME).go  | cut -d\" -f2')
-else
-VERSION:=$(shell sh -c 'git describe --always --tags | sed -e "s/^v//i"')
-endif
 
 all: build
 
 build:
 	$(GO) build github.com/lomik/$(NAME)
 
+debug:
+	$(GO) build -gcflags=all='-N -l' github.com/lomik/$(NAME)
+	
 gox-build:
 	rm -rf out
 	mkdir -p out
@@ -37,6 +34,7 @@ fpm-build-deb:
 	fpm -s dir -t deb -n $(NAME) -v $(VERSION) \
 		--deb-priority optional --category admin \
 		--force \
+		--deb-compression bzip2 \
 		--url https://github.com/lomik/$(NAME) \
 		--description $(DESCRIPTION) \
 		-m $(MAINTAINER) \
