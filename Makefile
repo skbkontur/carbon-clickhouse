@@ -9,12 +9,18 @@ VERSION:=$(shell sh -c 'grep "const Version" $(NAME).go  | cut -d\" -f2')
 
 all: build
 
+FORCE:
+
 build:
 	$(GO) build github.com/lomik/$(NAME)
 
 debug:
 	$(GO) build -gcflags=all='-N -l' github.com/lomik/$(NAME)
 	
+test: FORCE
+	$(GO) test -coverprofile coverage.txt github.com/lomik/$(NAME)
+	$(GO) test -coverprofile coverage.txt  ./...
+
 gox-build:
 	rm -rf out
 	mkdir -p out
