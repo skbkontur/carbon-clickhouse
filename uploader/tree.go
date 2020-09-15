@@ -78,7 +78,6 @@ LineLoop:
 		if bytes.IndexByte(name, '?') >= 0 {
 			continue
 		}
-		n++
 
 		if u.existsCache.Exists(unsafeString(name)) {
 			continue LineLoop
@@ -87,6 +86,7 @@ LineLoop:
 		if newSeries[unsafeString(name)] {
 			continue LineLoop
 		}
+		n++
 
 		level = pathLevel(name)
 

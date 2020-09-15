@@ -81,7 +81,6 @@ LineLoop:
 		if bytes.IndexByte(name, '?') < 0 {
 			continue
 		}
-		n++
 
 		key := fmt.Sprintf("%d:%s", reader.Days(), unsafeString(name))
 
@@ -92,6 +91,7 @@ LineLoop:
 		if newTagged[key] {
 			continue LineLoop
 		}
+		n++
 
 		m, err := urlParse(unsafeString(name))
 		if err != nil {

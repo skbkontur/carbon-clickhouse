@@ -64,7 +64,6 @@ LineLoop:
 		if bytes.IndexByte(name, '?') >= 0 {
 			continue
 		}
-		n++
 
 		key := fmt.Sprintf("%d:%s", reader.Days(), unsafeString(name))
 
@@ -75,6 +74,7 @@ LineLoop:
 		if newSeries[key] {
 			continue LineLoop
 		}
+		n++
 
 		level = pathLevel(name)
 

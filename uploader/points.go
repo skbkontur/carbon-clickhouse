@@ -65,6 +65,7 @@ func (u *Points) parseAndFilter(filename string, out io.Writer) (uint64, error) 
 			if err != nil {
 				return n, err
 			}
+			n++
 		}
 	}
 
