@@ -2,6 +2,7 @@ package RowBinary
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,7 +33,7 @@ func TestReverseInplace(t *testing.T) {
 		x := []byte(table[i])
 		y := []byte(table[i])
 		z := reverseBytesOriginal(x)
-		reverseMetricInplace(y)
+		ReverseMetricInplace(y)
 		assert.Equal(string(z), string(y))
 	}
 }
@@ -75,18 +76,42 @@ func BenchmarkMetricInplace(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		reverseMetricInplace(m)
+		ReverseMetricInplace(m)
 	}
 }
 
 func BenchmarkReverseBytes(b *testing.B) {
-	name := []byte("test.reverse.metric")
-
+	m := []byte("carbon.agents.carbon-clickhouse.graphite1.tcp.metricsReceived")
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_ = ReverseBytes(name)
+		_ = ReverseBytes(m)
+	}
+}
+
+func BenchmarkReverseReAlloc(b *testing.B) {
+	m := []byte("carbon.agents.carbon-clickhouse.graphite1.tcp.metricsReceived")
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	out := make([]byte, 2) // Small size for realloc
+	for i := 0; i < b.N; i++ {
+		l := len(m)
+		if len(m) > len(out) {
+			if l < 4096 {
+				l = 4096
+			}
+			out = make([]byte, l)
+		}
+		//ReverseBytesTo(out, m, len(m))
+		ReverseBytesTo(out[0:len(m)], m)
+	}
+	b.StopTimer()
+	b.ReportAllocs()
+	z := reverseBytesOriginal(m)
+	if strings.Compare(string(z), string(out[0:len(m)])) != 0 {
+		b.Fatalf("Unexpected string: %s, want: %s", out[0:len(m)], z)
 	}
 }
 

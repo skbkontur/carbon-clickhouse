@@ -54,8 +54,13 @@ func (r *Reader) Version() uint32 {
 func ReverseBytes(target []byte) []byte {
 	r := make([]byte, len(target))
 	copy(r, target)
-	reverseMetricInplace(r)
+	ReverseMetricInplace(r)
 	return r
+}
+
+func ReverseBytesTo(dst []byte, src []byte) {
+	copy(dst, src)
+	ReverseMetricInplace(dst)
 }
 
 func reverse(m []byte) {
@@ -68,7 +73,7 @@ func reverse(m []byte) {
 	}
 }
 
-func reverseMetricInplace(m []byte) {
+func ReverseMetricInplace(m []byte) {
 	reverse(m)
 
 	var a, b int
@@ -82,9 +87,27 @@ func reverseMetricInplace(m []byte) {
 	reverse(m[a:b])
 }
 
-func ReverseBytesTo(dst []byte, src []byte) {
-	copy(dst, src)
-	reverseMetricInplace(dst)
+func reverseRange(m []byte, start int, end int) {
+	i := start
+	j := end - 1
+	for i < j {
+		m[i], m[j] = m[j], m[i]
+		i++
+		j--
+	}
+}
+
+func ReverseMetricInplaceL(m []byte, l int) {
+	reverse(m[0:l])
+
+	var a, b int
+	for b = 0; b < l; b++ {
+		if m[b] == '.' {
+			reverse(m[a:b])
+			a = b + 1
+		}
+	}
+	reverse(m[a:b])
 }
 
 func (r *Reader) readRecord() ([]byte, error) {
@@ -109,7 +132,7 @@ func (r *Reader) readRecord() ([]byte, error) {
 	}
 
 	if r.isReverse && bytes.IndexByte(r.line[r.size:r.size+n], '?') < 0 {
-		reverseMetricInplace(r.line[r.size : r.size+n])
+		ReverseMetricInplace(r.line[r.size : r.size+n])
 	}
 
 	name := r.line[r.size : r.size+n]
