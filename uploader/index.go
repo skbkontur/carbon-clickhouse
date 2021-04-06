@@ -117,6 +117,13 @@ LineLoop:
 			wb.WriteBytes(p[:index+1])
 			wb.WriteUint32(version)
 
+			if !u.config.DisableDailyIndex && u.config.LevelDailyIndex {
+				wb.WriteUint16(reader.Days())
+				wb.WriteUint32(uint32(l + TreeLevelOffset))
+				wb.WriteBytes(p[:index+1])
+				wb.WriteUint32(version)
+			}
+
 			p = p[:index]
 		}
 
