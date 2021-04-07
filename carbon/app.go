@@ -56,6 +56,8 @@ func (app *App) configure() error {
 	for k, v := range cfg.Upload {
 		if v.DisableDailyIndex && v.DisableGlobalIndex {
 			return fmt.Errorf("upload[%s] error: set disable-daily-index, disable-global-index to false or both", k)
+		} else if v.DisableGlobalIndex && !v.LevelDailyIndex {
+			return fmt.Errorf("upload[%s] error: set disable-daily-index to false or level-daily-index to true", k)
 		}
 	}
 

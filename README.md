@@ -134,6 +134,12 @@ cache-ttl = "12h0m0s"
 hash = ""
 # If daily index should be disabled, default is `false`
 disable-daily-index = false
+# Write levels for find completer queries for daily index, default is `false`
+# Need support on metric read backend for completer find without global index
+level-daily-index = false
+# If global index should be disabled, default is `false`
+# Need support on metric read backend for completer find without global index
+disable-global-index = false
 
 # # You can define additional upload destinations of any supported type:
 # # - points
