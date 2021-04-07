@@ -53,6 +53,12 @@ func (app *App) configure() error {
 		return err
 	}
 
+	for k, v := range cfg.Upload {
+		if v.DisableDailyIndex && v.DisableGlobalIndex {
+			return fmt.Errorf("upload[%s] error: set disable-daily-index, disable-global-index to false or both", k)
+		}
+	}
+
 	// carbon-cache prefix
 	if hostname, err := os.Hostname(); err == nil {
 		hostname = strings.Replace(hostname, ".", "_", -1)

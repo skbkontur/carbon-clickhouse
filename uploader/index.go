@@ -97,10 +97,18 @@ LineLoop:
 		RowBinary.ReverseBytesTo(reverseName, name)
 
 		// Tree
-		wb.WriteUint16(treeDate)
-		wb.WriteUint32(uint32(level + TreeLevelOffset))
-		wb.WriteBytes(name)
-		wb.WriteUint32(version)
+		if !u.config.DisableGlobalIndex {
+			wb.WriteUint16(treeDate)
+			wb.WriteUint32(uint32(level + TreeLevelOffset))
+			wb.WriteBytes(name)
+			wb.WriteUint32(version)
+
+			// Reverse path without date
+			wb.WriteUint16(treeDate)
+			wb.WriteUint32(uint32(level + ReverseTreeLevelOffset))
+			wb.WriteBytes(reverseName)
+			wb.WriteUint32(version)
+		}
 
 		p = name
 		l = level
@@ -112,12 +120,15 @@ LineLoop:
 
 			newUniq[string(p[:index+1])] = true
 
-			wb.WriteUint16(treeDate)
-			wb.WriteUint32(uint32(l + TreeLevelOffset))
-			wb.WriteBytes(p[:index+1])
-			wb.WriteUint32(version)
+			if !u.config.DisableGlobalIndex {
+				wb.WriteUint16(treeDate)
+				wb.WriteUint32(uint32(l + TreeLevelOffset))
+				wb.WriteBytes(p[:index+1])
+				wb.WriteUint32(version)
+			}
 
 			if !u.config.DisableDailyIndex && u.config.LevelDailyIndex {
+				// store levels for find in daily index
 				wb.WriteUint16(reader.Days())
 				wb.WriteUint32(uint32(l + TreeLevelOffset))
 				wb.WriteBytes(p[:index+1])
@@ -126,12 +137,6 @@ LineLoop:
 
 			p = p[:index]
 		}
-
-		// Reverse path without date
-		wb.WriteUint16(treeDate)
-		wb.WriteUint32(uint32(level + ReverseTreeLevelOffset))
-		wb.WriteBytes(reverseName)
-		wb.WriteUint32(version)
 
 		_, err = out.Write(wb.Bytes())
 		if err != nil {
