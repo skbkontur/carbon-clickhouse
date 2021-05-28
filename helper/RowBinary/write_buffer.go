@@ -63,6 +63,14 @@ func (wb *WriteBuffer) Empty() bool {
 	return wb.Used == 0
 }
 
+func (wb *WriteBuffer) Len() int {
+	return wb.Used
+}
+
+func (wb *WriteBuffer) Free() int {
+	return len(wb.Body) - wb.Used
+}
+
 func (wb *WriteBuffer) Bytes() []byte {
 	return wb.Body[:wb.Used]
 }

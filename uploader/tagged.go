@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/lomik/carbon-clickhouse/helper/RowBinary"
+	"github.com/lomik/zapwriter"
 	"github.com/msaf1980/stringutils"
+	"go.uber.org/zap"
 )
 
 type Tagged struct {
@@ -82,6 +84,8 @@ func (u *Tagged) parseFile(filename string, out io.Writer) (uint64, map[string]b
 	defer wb.Release()
 	defer tagsBuf.Release()
 
+	logger := zapwriter.Logger("upload").With(zap.String("type", "tagged"), zap.String("name", filename))
+
 LineLoop:
 	for {
 		name, err := reader.ReadRecord()
@@ -124,6 +128,16 @@ LineLoop:
 		tagsWritten := 1
 		for _, tag := range tags {
 			tagsBuf.WriteString(tag)
+		}
+
+		// calc size for prevent w
+		sizeTags := 2 + 8 + len(mname) + 8 + len(name) + 8 + tagsBuf.Len() + 2
+		for i := 0; i < len(tags); i++ {
+			sizeTags += 2 + 8 + len(tags[i]) + 8 + len(name) + 8 + tagsBuf.Len() + 4
+		}
+		if sizeTags >= wb.Free() {
+			logger.Warn("overflow", zap.String("metric", string(name)))
+			continue
 		}
 
 		if !ignoreAllButName {
