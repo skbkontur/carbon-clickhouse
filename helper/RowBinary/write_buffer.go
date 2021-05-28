@@ -13,7 +13,7 @@ var writeBufferPool = sync.Pool{
 	},
 }
 
-const WriteBufferSize = 524288
+const WriteBufferSize = 1048576
 
 type WriteBuffer struct {
 	Used      int
