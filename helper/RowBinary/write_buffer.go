@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"math"
 	"sync"
+
+	"github.com/msaf1980/go-stringutils"
 )
 
 const (
@@ -118,7 +120,7 @@ func (wb *WriteBuffer) WriteTagged(tagged []string) {
 
 func (wb *WriteBuffer) WriteString(s string) {
 	wb.Used += binary.PutUvarint(wb.Body[wb.Used:], uint64(len(s)))
-	wb.Used += copy(wb.Body[wb.Used:], []byte(s))
+	wb.Used += copy(wb.Body[wb.Used:], stringutils.UnsafeStringBytes(&s))
 }
 
 func (wb *WriteBuffer) WriteUVarint(v uint64) {
