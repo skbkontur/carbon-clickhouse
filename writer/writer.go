@@ -244,23 +244,7 @@ func (w *Writer) worker(ctx context.Context) {
 	// open first file
 	rotateCheck()
 
-	tickerC := make(chan struct{}, 1)
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(100 * time.Millisecond):
-				select {
-				case tickerC <- struct{}{}:
-					// pass
-				case <-ctx.Done():
-					return
-				}
-			}
-		}
-	}()
+	ticker := time.NewTicker(100 * time.Millisecond)
 
 	write := func(b *RowBinary.WriteBuffer) {
 		_, err := outBuf.Write(b.Body[:b.Used])
@@ -286,7 +270,7 @@ func (w *Writer) worker(ctx context.Context) {
 		select {
 		case b := <-w.inputChan:
 			write(b)
-		case <-tickerC:
+		case _ = <-ticker.C:
 			rotateCheck()
 		case <-ctx.Done():
 			return
@@ -297,15 +281,6 @@ func (w *Writer) worker(ctx context.Context) {
 				if err := cwr.Flush(); err != nil {
 					w.logger.Error("CompWriter Flush() failed", zap.Error(err))
 				}
-			}
-
-			select {
-			case b := <-w.inputChan:
-				write(b)
-			case <-tickerC:
-				rotateCheck()
-			case <-ctx.Done():
-				return
 			}
 		}
 	}
