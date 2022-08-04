@@ -143,7 +143,7 @@ LineLoop:
 			u.logger.Warn("parse",
 				zap.String("metric", stringutils.UnsafeString(name)), zap.String("type", "index"), zap.String("name", filename), zap.Error(err),
 			)
-			break
+			continue
 		}
 
 		// Reverse path without date
