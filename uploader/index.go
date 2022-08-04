@@ -98,7 +98,7 @@ LineLoop:
 
 		if sizeIndex >= wb.FreeSize() {
 			u.logger.Warn("parse",
-				zap.String("metric", stringutils.UnsafeString(name)), zap.String("type", "index"), zap.String("name", filename), zap.Error(err),
+				zap.String("metric", stringutils.UnsafeString(name)), zap.String("type", "index"), zap.String("name", filename), zap.Error(errBufOverflow),
 			)
 			continue
 		}
@@ -141,7 +141,7 @@ LineLoop:
 
 		if overflow {
 			u.logger.Warn("parse",
-				zap.String("metric", stringutils.UnsafeString(name)), zap.String("type", "index"), zap.String("name", filename), zap.Error(err),
+				zap.String("metric", stringutils.UnsafeString(name)), zap.String("type", "index"), zap.String("name", filename), zap.Error(errBufOverflow),
 			)
 			continue
 		}
