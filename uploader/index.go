@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/lomik/carbon-clickhouse/helper/RowBinary"
+	"github.com/msaf1980/go-stringutils"
+	"go.uber.org/zap"
 )
 
 type Index struct {
@@ -90,6 +92,17 @@ LineLoop:
 
 		newSeries[key] = true
 
+		sizeIndex := 2 * (RowBinary.SIZE_INT16 /* days */ +
+			RowBinary.SIZE_INT32 + len(name) +
+			RowBinary.SIZE_INT32) //  version
+
+		if sizeIndex >= wb.FreeSize() {
+			u.logger.Warn("parse",
+				zap.String("metric", stringutils.UnsafeString(name)), zap.String("type", "index"), zap.String("name", filename), zap.Error(err),
+			)
+			continue
+		}
+
 		// Tree
 		wb.WriteUint16(treeDate)
 		wb.WriteUint32(uint32(level + TreeLevelOffset))
@@ -98,13 +111,25 @@ LineLoop:
 
 		p = name
 		l = level
+		overflow := false
 		for l--; l > 0; l-- {
 			index = bytes.LastIndexByte(p, '.')
 			if newUniq[unsafeString(p[:index+1])] {
 				break
 			}
 
-			newUniq[string(p[:index+1])] = true
+			indx := p[:index+1]
+
+			newUniq[string(indx)] = true
+
+			sizeIndex += RowBinary.SIZE_INT16 /* days */ +
+				RowBinary.SIZE_INT32 + len(indx) +
+				RowBinary.SIZE_INT32 //  version
+
+			if sizeIndex >= wb.FreeSize() {
+				overflow = true
+				break
+			}
 
 			wb.WriteUint16(treeDate)
 			wb.WriteUint32(uint32(l + TreeLevelOffset))
@@ -112,6 +137,13 @@ LineLoop:
 			wb.WriteUint32(version)
 
 			p = p[:index]
+		}
+
+		if overflow {
+			u.logger.Warn("parse",
+				zap.String("metric", stringutils.UnsafeString(name)), zap.String("type", "index"), zap.String("name", filename), zap.Error(err),
+			)
+			break
 		}
 
 		// Reverse path without date
