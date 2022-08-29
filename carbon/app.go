@@ -207,6 +207,7 @@ func (app *App) Start() (err error) {
 	app.Writer = writer.New(
 		app.writeChan,
 		conf.Data.Path,
+		conf.Data.ChunkMaxSize.Value(),
 		conf.Data.AutoInterval,
 		conf.Data.CompAlgo.CompAlgo,
 		conf.Data.CompLevel,
@@ -253,6 +254,7 @@ func (app *App) Start() (err error) {
 			receiver.WriteChan(app.writeChan),
 			receiver.DropFuture(uint32(conf.Tcp.DropFuture.Value().Seconds())),
 			receiver.DropPast(uint32(conf.Tcp.DropPast.Value().Seconds())),
+			receiver.DropLongerThan(conf.Tcp.DropLongerThan),
 			receiver.ReadTimeout(uint32(conf.Tcp.ReadTimeout.Value().Seconds())),
 		)
 
@@ -271,6 +273,7 @@ func (app *App) Start() (err error) {
 			receiver.WriteChan(app.writeChan),
 			receiver.DropFuture(uint32(conf.Udp.DropFuture.Value().Seconds())),
 			receiver.DropPast(uint32(conf.Udp.DropPast.Value().Seconds())),
+			receiver.DropLongerThan(conf.Udp.DropLongerThan),
 		)
 
 		if err != nil {
@@ -288,6 +291,7 @@ func (app *App) Start() (err error) {
 			receiver.WriteChan(app.writeChan),
 			receiver.DropFuture(uint32(conf.Pickle.DropFuture.Value().Seconds())),
 			receiver.DropPast(uint32(conf.Pickle.DropPast.Value().Seconds())),
+			receiver.DropLongerThan(conf.Pickle.DropLongerThan),
 		)
 
 		if err != nil {
@@ -304,6 +308,7 @@ func (app *App) Start() (err error) {
 			receiver.WriteChan(app.writeChan),
 			receiver.DropFuture(uint32(conf.Grpc.DropFuture.Value().Seconds())),
 			receiver.DropPast(uint32(conf.Grpc.DropPast.Value().Seconds())),
+			receiver.DropLongerThan(conf.Grpc.DropLongerThan),
 		)
 
 		if err != nil {
@@ -320,6 +325,7 @@ func (app *App) Start() (err error) {
 			receiver.WriteChan(app.writeChan),
 			receiver.DropFuture(uint32(conf.Prometheus.DropFuture.Value().Seconds())),
 			receiver.DropPast(uint32(conf.Prometheus.DropPast.Value().Seconds())),
+			receiver.DropLongerThan(conf.Prometheus.DropLongerThan),
 		)
 
 		if err != nil {
@@ -336,6 +342,8 @@ func (app *App) Start() (err error) {
 			receiver.WriteChan(app.writeChan),
 			receiver.DropFuture(uint32(conf.TelegrafHttpJson.DropFuture.Value().Seconds())),
 			receiver.DropPast(uint32(conf.TelegrafHttpJson.DropPast.Value().Seconds())),
+			receiver.DropLongerThan(conf.TelegrafHttpJson.DropLongerThan),
+			receiver.ConcatChar(conf.TelegrafHttpJson.Concat),
 		)
 
 		if err != nil {

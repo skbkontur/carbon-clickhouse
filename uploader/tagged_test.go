@@ -3,11 +3,13 @@ package uploader
 import (
 	"fmt"
 	"net/url"
-	"sort"
 	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/lomik/carbon-clickhouse/helper/RowBinary"
 	"github.com/lomik/carbon-clickhouse/helper/escape"
+	"github.com/lomik/zapwriter"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -59,95 +61,29 @@ func BenchmarkKeyConcat(b *testing.B) {
 	}
 }
 
-func TestTagsParse(t *testing.T) {
-	assert := assert.New(t)
+func TestTagged_parseName_Overflow(t *testing.T) {
+	var tag1 []string
+	wb := RowBinary.GetWriteBuffer()
+	tagsBuf := RowBinary.GetWriteBuffer()
+	defer wb.Release()
+	defer tagsBuf.Release()
 
-	// make metric name as receiver
-	metric := escape.Path("instance:cpu_utilization:ratio_avg") +
-		"?" + escape.Query("dc") + "=" + escape.Query("qwe") +
-		"&" + escape.Query("fqdn") + "=" + escape.Query("asd") +
-		"&" + escape.Query("instance") + "=" + escape.Query("10.33.10.10_9100") +
-		"&" + escape.Query("job") + "=" + escape.Query("node")
-
-	assert.Equal("instance:cpu_utilization:ratio_avg?dc=qwe&fqdn=asd&instance=10.33.10.10_9100&job=node", metric)
-
-	// original url.Parse
-	m, err := url.Parse(metric)
-	assert.NotNil(m)
-	assert.NoError(err)
-	assert.Equal("", m.Path)
-
-	// from tagged uploader
-	m, err = urlParse(metric)
-	assert.NotNil(m)
-	assert.NoError(err)
-	assert.Equal("instance:cpu_utilization:ratio_avg", m.Path)
-	m.Path = "__name__=" + m.Path
-	mapTags := m.Query()
-	mTags := make([]string, len(mapTags))
-	n := 0
-	for k, v := range mapTags {
-		mTags[n] = k + "=" + v[0]
-		n++
+	logger := zapwriter.Logger("upload")
+	base := &Base{
+		queue:   make(chan string, 1024),
+		inQueue: make(map[string]bool),
+		logger:  logger,
+		config:  &Config{TableName: "test"},
 	}
-	sort.Strings(mTags)
-
-	name, tags, err := tagsParse(metric)
-	if err != nil {
-		t.Errorf("tagParse: %s", err.Error())
+	var sb strings.Builder
+	sb.WriteString("very_long_name_field1.very_long_name_field2.very_long_name_field3.very_long_name_field4?")
+	for i := 0; i < 100; i++ {
+		if i > 0 {
+			sb.WriteString("&")
+		}
+		sb.WriteString(fmt.Sprintf("very_long_tag%d=very_long_value%d", i, i))
 	}
-	assert.Equal(m.Path, name)
-	assert.Equal(mTags, tags)
-}
-
-func BenchmarkNetUrlParse(b *testing.B) {
-	// make metric name as receiver
-	metric := escape.Path("instance:cpu_utilization:ratio_avg") +
-		"?" + escape.Query("dc") + "=" + escape.Query("qwe") +
-		"&" + escape.Query("fqdn") + "=" + escape.Query("asd") +
-		"&" + escape.Query("instance") + "=" + escape.Query("10.33.10.10_9100") +
-		"&" + escape.Query("job") + "=" + escape.Query("node")
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		u, _ := url.Parse(metric)
-		u.Path = "__name__=" + u.Path
-		_ = u.Query()
-	}
-}
-
-func BenchmarkUrlParse(b *testing.B) {
-	// make metric name as receiver
-	metric := escape.Path("instance:cpu_utilization:ratio_avg") +
-		"?" + escape.Query("dc") + "=" + escape.Query("qwe") +
-		"&" + escape.Query("fqdn") + "=" + escape.Query("asd") +
-		"&" + escape.Query("instance") + "=" + escape.Query("10.33.10.10_9100") +
-		"&" + escape.Query("job") + "=" + escape.Query("node")
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		u, _ := urlParse(metric)
-		u.Path = "__name__=" + u.Path
-		_ = u.Query()
-	}
-}
-
-func BenchmarkTagParse(b *testing.B) {
-	// make metric name as receiver
-	metric := escape.Path("instance:cpu_utilization:ratio_avg") +
-		"?" + escape.Query("dc") + "=" + escape.Query("qwe") +
-		"&" + escape.Query("fqdn") + "=" + escape.Query("asd") +
-		"&" + escape.Query("instance") + "=" + escape.Query("10.33.10.10_9100") +
-		"&" + escape.Query("job") + "=" + escape.Query("node")
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		_, _, _ = tagsParse(metric)
-	}
+	u := NewTagged(base)
+	err := u.parseName(sb.String(), 10, tag1, wb, tagsBuf)
+	assert.Equal(t, errBufOverflow, err)
 }

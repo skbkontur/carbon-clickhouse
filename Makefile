@@ -15,29 +15,40 @@ else
 VERSION:=$(shell sh -c 'git describe --always --tags | sed -e "s/^v//i"')
 endif
 
+SRCS:=$(shell find . -name '*.go')
+
 all: $(NAME)
 
-.PHONY: $(NAME)
-$(NAME):
+.PHONY: clean
+clean:
+	rm -f $(NAME)
+	rm -rf out
+	rm -f *deb *rpm
+	rm -f sha256sum md5sum
+
+$(NAME): $(SRCS)
 	$(GO) build $(MODULE)
 
+e2e-test: $(NAME)
+	$(GO) build $(MODULE)/cmd/e2e-test
+
 test:
-	$(GO) test ./...
+	$(GO) test -race ./...
 
 gox-build:
 	rm -rf out
 	mkdir -p out
-	gox -os="linux" -arch="amd64" -arch="386" -output="out/$(NAME)-{{.OS}}-{{.Arch}}"  github.com/lomik/$(NAME)
+	gox -os="linux" -arch="amd64" -arch="arm64" -output="out/$(NAME)-{{.OS}}-{{.Arch}}"  github.com/lomik/$(NAME)
 	ls -la out/
 	mkdir -p out/root/etc/$(NAME)/
 	./out/$(NAME)-linux-amd64 -config-print-default > out/root/etc/$(NAME)/$(NAME).conf
 
 fpm-deb:
-	make fpm-build-deb ARCH=amd64
-	make fpm-build-deb ARCH=386
+	$(MAKE) fpm-build-deb ARCH=amd64
+	$(MAKE) fpm-build-deb ARCH=arm64
 fpm-rpm:
-	make fpm-build-rpm ARCH=amd64
-	make fpm-build-rpm ARCH=386
+	$(MAKE) fpm-build-rpm ARCH=amd64
+	$(MAKE) fpm-build-rpm ARCH=arm64
 
 fpm-build-deb:
 	fpm -s dir -t deb -n $(NAME) -v $(VERSION) \
@@ -49,8 +60,9 @@ fpm-build-deb:
 		--license "MIT" \
 		-a $(ARCH) \
 		--config-files /etc/$(NAME)/$(NAME).conf \
+		--config-files /etc/logrotate.d/$(NAME) \
 		out/$(NAME)-linux-$(ARCH)=/usr/bin/$(NAME) \
-		deploy/systemd/$(NAME).service=/usr/lib/systemd/system/$(NAME).service \
+		deploy/root/=/ \
 		out/root/=/
 
 
@@ -64,24 +76,44 @@ fpm-build-rpm:
 		--license "MIT" \
 		-a $(ARCH) \
 		--config-files /etc/$(NAME)/$(NAME).conf \
+		--config-files /etc/logrotate.d/$(NAME) \
 		out/$(NAME)-linux-$(ARCH)=/usr/bin/$(NAME) \
-		deploy/systemd/$(NAME).service=/usr/lib/systemd/system/$(NAME).service \
+		deploy/root/=/ \
 		out/root/=/
 
+.ONESHELL:
+RPM_VERSION:=$(subst -,_,$(VERSION))
+packagecloud-push-rpm: $(wildcard $(NAME)-$(RPM_VERSION)-1.*.rpm)
+	for pkg in $^; do
+		package_cloud push $(REPO)/el/7 $${pkg} || true
+		package_cloud push $(REPO)/el/8 $${pkg} || true
+	done
+
+.ONESHELL:
+packagecloud-push-deb: $(wildcard $(NAME)_$(VERSION)_*.deb)
+	for pkg in $^; do
+		package_cloud push $(REPO)/ubuntu/xenial   $${pkg} || true
+		package_cloud push $(REPO)/ubuntu/bionic   $${pkg} || true
+		package_cloud push $(REPO)/ubuntu/focal    $${pkg} || true
+		package_cloud push $(REPO)/debian/stretch  $${pkg} || true
+		package_cloud push $(REPO)/debian/buster   $${pkg} || true
+		package_cloud push $(REPO)/debian/bullseye $${pkg} || true
+	done
+
 packagecloud-push:
-	package_cloud push $(REPO)/el/8 $(NAME)-$(VERSION)-1.x86_64.rpm || true
-	package_cloud push $(REPO)/el/7 $(NAME)-$(VERSION)-1.x86_64.rpm || true
-	package_cloud push $(REPO)/ubuntu/xenial $(NAME)_$(VERSION)_amd64.deb || true
-	package_cloud push $(REPO)/ubuntu/bionic $(NAME)_$(VERSION)_amd64.deb || true
-	package_cloud push $(REPO)/ubuntu/disco $(NAME)_$(VERSION)_amd64.deb || true
-	package_cloud push $(REPO)/ubuntu/eoan $(NAME)_$(VERSION)_amd64.deb || true
-	package_cloud push $(REPO)/debian/buster $(NAME)_$(VERSION)_amd64.deb || true
-	package_cloud push $(REPO)/debian/stretch $(NAME)_$(VERSION)_amd64.deb || true
-	package_cloud push $(REPO)/debian/jessie $(NAME)_$(VERSION)_amd64.deb || true
+	@$(MAKE) packagecloud-push-rpm
+	@$(MAKE) packagecloud-push-deb
 
 packagecloud-autobuilds:
-	make packagecloud-push REPO=go-graphite/autobuilds
+	$(MAKE) packagecloud-push REPO=go-graphite/autobuilds
 
 packagecloud-stable:
-	make packagecloud-push REPO=go-graphite/stable
+	$(MAKE) packagecloud-push REPO=go-graphite/stable
 
+sum-files: | sha256sum md5sum
+
+md5sum:
+	md5sum $(wildcard $(NAME)_$(VERSION)*.deb) $(wildcard $(NAME)-$(VERSION)*.rpm) > md5sum
+
+sha256sum:
+	sha256sum $(wildcard $(NAME)_$(VERSION)*.deb) $(wildcard $(NAME)-$(VERSION)*.rpm) > sha256sum

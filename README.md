@@ -10,6 +10,9 @@ Last releases are stable and ready for production use
 ## TL;DR
 [Preconfigured docker-compose](https://github.com/lomik/graphite-clickhouse-tldr)
 
+### Docker
+Docker images are available on [packages](https://github.com/lomik/carbon-clickhouse/pkgs/container/carbon-clickhouse) page.
+
 ## Build
 ```sh
 # build binary
@@ -91,7 +94,11 @@ level = "info"
 [data]
 # Folder for buffering received data
 path = "/data/carbon-clickhouse/"
-# Rotate (and upload) file interval.
+# Rotate (and upload) file iniciated on size and interval
+# Rotate (and upload) file size (in bytes, also k, m and g units can be used)
+# chunk-max-size = '512m'
+chunk-max-size = 0
+# Rotate (and upload) file interval
 # Minimize chunk-interval for minimize lag between point receive and store
 chunk-interval = "1s"
 # Auto-increase chunk interval if the number of unprocessed files is grown
@@ -126,6 +133,11 @@ threads = 1
 url = "http://localhost:8123/"
 timeout = "1m0s"
 cache-ttl = "12h0m0s"
+# Store hash of metric in memory instead of full metric name
+# Allowed values: "", "city64" (empty value - disabled)
+hash = ""
+# If daily index should be disabled, default is `false`
+disable-daily-index = false
 
 # # You can define additional upload destinations of any supported type:
 # # - points
@@ -166,18 +178,22 @@ enabled = true
 drop-future = "0s"
 # drop received point if timestamp < now - value. 0 - don't drop anything
 drop-past = "0s"
+# drop metrics with names longer than this value. 0 - don't drop anything
+drop-longer-than = 0
 
 [tcp]
 listen = ":2003"
 enabled = true
 drop-future = "0s"
 drop-past = "0s"
+drop-longer-than = 0
 
 [pickle]
 listen = ":2004"
 enabled = true
 drop-future = "0s"
 drop-past = "0s"
+drop-longer-than = 0
 
 # https://github.com/lomik/carbon-clickhouse/blob/master/grpc/carbon.proto
 [grpc]
@@ -185,22 +201,27 @@ listen = ":2005"
 enabled = false
 drop-future = "0s"
 drop-past = "0s"
+drop-longer-than = 0
 
 [prometheus]
 listen = ":2006"
 enabled = false
 drop-future = "0s"
 drop-past = "0s"
+drop-longer-than = 0
 
 [telegraf_http_json]
 listen = ":2007"
 enabled = false
 drop-future = "0s"
 drop-past = "0s"
+drop-longer-than = 0
+# the character to join telegraf metric and field (default is "_" for historical reason and Prometheus compatibility)
+concat = "."
 
 # Golang pprof + some extra locations
 #
-# Last 1000 points dropped by "drop-future" and "drop-past" rules:
+# Last 1000 points dropped by "drop-future", "drop-past" and "drop-longer-than" rules:
 # /debug/receive/tcp/dropped/
 # /debug/receive/udp/dropped/
 # /debug/receive/pickle/dropped/

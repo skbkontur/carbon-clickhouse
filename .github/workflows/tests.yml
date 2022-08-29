@@ -1,0 +1,104 @@
+name: Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+  tests:
+    env:
+      CGO_ENABLED: 0
+    name: Test code
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go:
+          - ^1.15
+          - ^1.16
+          - ^1.17
+          - ^1
+    steps:
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go }}
+
+    - name: Check out code
+      uses: actions/checkout@v2
+
+    - name: Checkout to the latest tag
+      run: |
+        # Fetch all tags
+        git fetch --depth=1 --tags
+        # Get the latest tag
+        VERS=$(git tag -l | sort -Vr | head -n1)
+        # Fetch everything to the latest tag
+        git fetch --shallow-since=$(git log $VERS -1 --format=%at)
+      if: ${{ github.event_name == 'push' }} # only when built from master
+
+    - name: Build project
+      run: make
+
+    - name: Test
+      run: make test
+      env:
+        CGO_ENABLED: 1
+
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '2.7' # Version range or exact version of a Ruby version to use, using semvers version range syntax.
+
+    - name: Install packaging dependencies
+      run: |
+        gem install fpm package_cloud
+        GO111MODULE=off go get github.com/mitchellh/gox
+
+    - name: Check packaging
+      run: |
+        make DEVEL=1 gox-build fpm-deb fpm-rpm
+        make sum-files
+
+    - name: Artifact
+      id: artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: packages-${{ matrix.go }}
+        path: |
+          *.deb
+          *.rpm
+          sha256sum
+          md5sum
+
+    - name: Push packages to the autobuilds repo
+      if: ${{ github.event_name == 'push' && matrix.go == '^1' }} # only when built from master with latest go
+      run: make DEVEL=1 packagecloud-autobuilds
+      env:
+        PACKAGECLOUD_TOKEN: ${{ secrets.PACKAGECLOUD_TOKEN }}
+
+  integration_tests:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go }}
+
+    - name: Check out code
+      uses: actions/checkout@v2
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: ^1
+
+    - name: Integration tests
+      run: |
+        make e2e-test
+        ./e2e-test -config tests

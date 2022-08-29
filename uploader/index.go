@@ -54,6 +54,12 @@ func (u *Index) parseFile(filename string, out io.Writer) (uint64, map[string]bo
 	}
 
 	reverseNameBuf := make([]byte, 256)
+
+	hashFunc := u.config.hashFunc
+	if hashFunc == nil {
+		hashFunc = keepOriginal
+	}
+
 LineLoop:
 	for {
 		name, err := reader.ReadRecord()
@@ -66,7 +72,7 @@ LineLoop:
 			continue
 		}
 
-		key := strconv.Itoa(int(reader.Days())) + ":" + unsafeString(name)
+		key := hashFunc(strconv.Itoa(int(reader.Days())) + ":" + unsafeString(name))
 
 		if u.existsCache.Exists(key) {
 			continue LineLoop
@@ -82,25 +88,6 @@ LineLoop:
 		wb.Reset()
 
 		newSeries[key] = true
-
-		// Direct path with date
-		wb.WriteUint16(reader.Days())
-		wb.WriteUint32(uint32(level))
-		wb.WriteBytes(name)
-		wb.WriteUint32(version)
-
-		l = len(name)
-		if l > len(reverseNameBuf) {
-			reverseNameBuf = make([]byte, len(name)*2)
-		}
-		reverseName := reverseNameBuf[0:l]
-		RowBinary.ReverseBytesTo(reverseName, name)
-
-		// Reverse path with date
-		wb.WriteUint16(reader.Days())
-		wb.WriteUint32(uint32(level + ReverseLevelOffset))
-		wb.WriteBytes(reverseName)
-		wb.WriteUint32(version)
 
 		// Tree
 		wb.WriteUint16(treeDate)
@@ -127,11 +114,42 @@ LineLoop:
 		}
 
 		// Reverse path without date
+		l = len(name)
+		if l > len(reverseNameBuf) {
+			reverseNameBuf = make([]byte, len(name)*2)
+		}
+		reverseName := reverseNameBuf[0:l]
+		RowBinary.ReverseBytesTo(reverseName, name)
+
 		wb.WriteUint16(treeDate)
 		wb.WriteUint32(uint32(level + ReverseTreeLevelOffset))
 		wb.WriteBytes(reverseName)
 		wb.WriteUint32(version)
 
+		// Write data with treeDate
+		_, err = out.Write(wb.Bytes())
+		if err != nil {
+			return n, nil, err
+		}
+
+		// Skip daily index
+		if u.config.DisableDailyIndex {
+			continue LineLoop
+		}
+
+		// Direct path with date
+		wb.WriteUint16(reader.Days())
+		wb.WriteUint32(uint32(level))
+		wb.WriteBytes(name)
+		wb.WriteUint32(version)
+
+		// Reverse path with date
+		wb.WriteUint16(reader.Days())
+		wb.WriteUint32(uint32(level + ReverseLevelOffset))
+		wb.WriteBytes(reverseName)
+		wb.WriteUint32(version)
+
+		// Write data with daily index
 		_, err = out.Write(wb.Bytes())
 		if err != nil {
 			return n, nil, err

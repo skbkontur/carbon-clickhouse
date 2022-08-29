@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/lomik/carbon-clickhouse/helper/RowBinary"
-	"github.com/msaf1980/stringutils"
+	"go.uber.org/zap"
 )
 
 type Tagged struct {
@@ -20,6 +20,8 @@ type Tagged struct {
 
 var _ Uploader = &Tagged{}
 var _ UploaderWithReset = &Tagged{}
+
+var errBufOverflow = fmt.Errorf("output buffer overflow")
 
 func NewTagged(base *Base) *Tagged {
 	u := &Tagged{}
@@ -50,16 +52,72 @@ func urlParse(rawurl string) (*url.URL, error) {
 	return m, err
 }
 
-// don't unescape special symbols
-// escape also not needed (all is done in receiver/plain.go, Base.PlainParseLine)
-func tagsParse(path string) (string, []string, error) {
-	name, args, n := stringutils.Split2(path, "?")
-	if n == 1 || args == "" {
-		return name, nil, fmt.Errorf("incomplete tags in '%s'", path)
+func (u *Tagged) parseName(name string, days uint16,
+	// reusable buffers
+	tag1 []string, wb *RowBinary.WriteBuffer, tagsBuf *RowBinary.WriteBuffer) error {
+
+	m, err := urlParse(name)
+	if err != nil {
+		return err
 	}
-	name = "__name__=" + name
-	tags := strings.Split(args, "&")
-	return name, tags, nil
+
+	version := uint32(time.Now().Unix())
+
+	wb.Reset()
+	tagsBuf.Reset()
+	tag1 = tag1[:0]
+
+	t := fmt.Sprintf("__name__=%s", m.Path)
+	tag1 = append(tag1, t)
+	tagsBuf.WriteString(t)
+
+	// calc size for prevent buffer overflow
+	sizeTags := RowBinary.SIZE_INT16 /* days */ +
+		RowBinary.SIZE_INT64 + len(m.Path) +
+		RowBinary.SIZE_INT64 + len(name) +
+		RowBinary.SIZE_INT64 + //  tagsBuf.Len() not known at this step
+		RowBinary.SIZE_INT16 //version
+
+	// don't upload any other tag but __name__
+	// if either main metric (m.Path) or each metric (*) is ignored
+	ignoreAllButName := u.ignoredMetrics[m.Path] || u.ignoredMetrics["*"]
+	tagsWritten := 1
+	for k, v := range m.Query() {
+		t := fmt.Sprintf("%s=%s", k, v[0])
+
+		sizeTags += RowBinary.SIZE_INT16 /* days */ +
+			RowBinary.SIZE_INT64 + len(t) +
+			RowBinary.SIZE_INT64 + len(name) +
+			RowBinary.SIZE_INT64 + // tagsBuf.Len() not known at this step
+			RowBinary.SIZE_INT16 //version
+
+		if sizeTags >= wb.FreeSize() {
+			return errBufOverflow
+		}
+
+		tagsBuf.WriteString(t)
+		tagsWritten++
+
+		if !ignoreAllButName {
+			tag1 = append(tag1, t)
+		}
+	}
+
+	sizeTags += len(tag1) * tagsBuf.Len()
+	if sizeTags >= wb.FreeSize() {
+		return errBufOverflow
+	}
+
+	for i := 0; i < len(tag1); i++ {
+		wb.WriteUint16(days)
+		wb.WriteString(tag1[i])
+		wb.WriteString(name)
+		wb.WriteUVarint(uint64(tagsWritten))
+		wb.Write(tagsBuf.Bytes())
+		wb.WriteUint32(version)
+	}
+
+	return nil
 }
 
 func (u *Tagged) parseFile(filename string, out io.Writer) (uint64, map[string]bool, error) {
@@ -73,14 +131,14 @@ func (u *Tagged) parseFile(filename string, out io.Writer) (uint64, map[string]b
 	}
 	defer reader.Close()
 
-	version := uint32(time.Now().Unix())
-
 	newTagged := make(map[string]bool)
 
 	wb := RowBinary.GetWriteBuffer()
 	tagsBuf := RowBinary.GetWriteBuffer()
 	defer wb.Release()
 	defer tagsBuf.Release()
+
+	tag1 := make([]string, 0)
 
 LineLoop:
 	for {
@@ -94,63 +152,30 @@ LineLoop:
 			continue
 		}
 
-		day := reader.Days()
-		key := strconv.Itoa(int(day)) + ":" + unsafeString(name)
+		nameStr := unsafeString(name)
 
+		days := reader.Days()
+		key := strconv.Itoa(int(days)) + ":" + nameStr
 		if u.existsCache.Exists(key) {
 			continue LineLoop
 		}
 
 		if newTagged[key] {
+			// already processed
 			continue LineLoop
 		}
+
 		n++
 
-		mname, tags, err := tagsParse(unsafeString(name))
-		if err != nil {
-			continue
-		}
-
-		newTagged[key] = true
-
-		wb.Reset()
-		tagsBuf.Reset()
-
-		tagsBuf.WriteString(mname)
-
-		// don't upload any other tag but __name__
-		// if either main metric (m.Path) or each metric (*) is ignored
-		ignoreAllButName := u.ignoredMetrics[mname] || u.ignoredMetrics["*"]
-		tagsWritten := 1
-		for _, tag := range tags {
-			tagsBuf.WriteString(tag)
-		}
-
-		if !ignoreAllButName {
-			tagsWritten += len(tags)
-		}
-
-		wb.WriteUint16(day)
-		wb.WriteString(mname)
-		wb.WriteBytes(name)
-		wb.WriteUVarint(uint64(tagsWritten))
-		wb.Write(tagsBuf.Bytes())
-		wb.WriteUint32(version)
-		if !ignoreAllButName {
-			for i := 0; i < len(tags); i++ {
-				wb.WriteUint16(day)
-				wb.WriteString(tags[i])
-				wb.WriteBytes(name)
-				wb.WriteUVarint(uint64(tagsWritten))
-				wb.Write(tagsBuf.Bytes())
-				wb.WriteUint32(version)
-			}
-		}
-
-		_, err = out.Write(wb.Bytes())
-		if err != nil {
+		if err = u.parseName(nameStr, days, tag1, wb, tagsBuf); err != nil {
+			u.logger.Warn("parse",
+				zap.String("metric", nameStr), zap.String("type", "tagged"), zap.String("name", filename), zap.Error(err),
+			)
+			continue LineLoop
+		} else if _, err = out.Write(wb.Bytes()); err != nil {
 			return n, nil, err
 		}
+		newTagged[key] = true
 	}
 
 	return n, newTagged, nil
