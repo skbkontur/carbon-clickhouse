@@ -1,16 +1,19 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/lomik/carbon-clickhouse/helper/tests"
 	"go.uber.org/zap"
 )
 
@@ -118,17 +121,15 @@ func verifyOut(address string, verify Verify) []string {
 		ss = []string{} /* results is empthy */
 	}
 
-	max := len(ss)
-	if max < len(verify.Output) {
-		max = len(verify.Output)
-	}
-	for i := 0; i < max; i++ {
+	maxLen := tests.Max(len(ss), len(verify.Output))
+	for i := 0; i < maxLen; i++ {
 		if i >= len(ss) {
-			errs = append(errs, "WANT '"+verify.Output[i]+"', GOT -")
+			errs = append(errs, fmt.Sprintf("- [%d]: %s", i, verify.Output[i]))
 		} else if i >= len(verify.Output) {
-			errs = append(errs, "WANT '-', GOT '"+ss[i]+"'")
+			errs = append(errs, fmt.Sprintf("+ [%d]: %s", i, ss[i]))
 		} else if ss[i] != verify.Output[i] {
-			errs = append(errs, "WANT '"+verify.Output[i]+"', GOT '"+ss[i]+"'")
+			errs = append(errs, fmt.Sprintf("- [%d]: %s", i, verify.Output[i]))
+			errs = append(errs, fmt.Sprintf("+ [%d]: %s", i, ss[i]))
 		}
 	}
 	return errs
@@ -137,7 +138,7 @@ func verifyOut(address string, verify Verify) []string {
 func testCarbonClickhouse(
 	inputType InputType, test *TestSchema, clickhouse Clickhouse,
 	testDir, rootDir string,
-	verbose bool, logger *zap.Logger) (testSuccess bool) {
+	verbose, breakOnError bool, logger *zap.Logger) (testSuccess bool) {
 
 	testSuccess = true
 
@@ -202,6 +203,9 @@ func testCarbonClickhouse(
 					zap.Error(err),
 				)
 				testSuccess = false
+				if breakOnError {
+					debug(test, &clickhouse, &cch)
+				}
 			}
 		}
 
@@ -213,7 +217,7 @@ func testCarbonClickhouse(
 					testSuccess = false
 					verifyFailed++
 					for _, e := range errs {
-						logger.Error(e)
+						fmt.Fprintln(os.Stderr, e)
 					}
 					logger.Error("verify records in clickhouse",
 						zap.String("config", test.name),
@@ -222,6 +226,9 @@ func testCarbonClickhouse(
 						zap.String("clickhouse config", clickhouseDir),
 						zap.String("verify", verify.Query),
 					)
+					if breakOnError {
+						debug(test, &clickhouse, &cch)
+					}
 				} else if verbose {
 					logger.Info("verify records in clickhouse",
 						zap.String("config", test.name),
@@ -302,7 +309,7 @@ func testCarbonClickhouse(
 	return
 }
 
-func runTest(config string, rootDir string, verbose bool, logger *zap.Logger) (failed, total int) {
+func runTest(config string, rootDir string, verbose, breakOnError bool, logger *zap.Logger) (failed, total int) {
 	testDir := path.Dir(config)
 	d, err := ioutil.ReadFile(config)
 	if err != nil {
@@ -337,13 +344,38 @@ func runTest(config string, rootDir string, verbose bool, logger *zap.Logger) (f
 	}
 
 	for _, clickhouse := range cfg.Test.Clickhouse {
+		if exist, out := containerExist(clickhouse.Docker, ClickhouseContainerName); exist {
+			logger.Error("clickhouse already exist",
+				zap.String("container", ClickhouseContainerName),
+				zap.String("out", out),
+			)
+			failed++
+			total++
+			continue
+		}
 		for _, inputType := range cfg.Test.InputTypes {
 			total++
-			if !testCarbonClickhouse(inputType, cfg.Test, clickhouse, testDir, rootDir, verbose, logger) {
+			if !testCarbonClickhouse(inputType, cfg.Test, clickhouse, testDir, rootDir, verbose, breakOnError, logger) {
 				failed++
 			}
 		}
 	}
 
 	return
+}
+
+func debug(test *TestSchema, ch *Clickhouse, cch *CarbonClickhouse) {
+	for {
+		fmt.Printf("carbon-clickhouse URL: %s , clickhouse URL: %s\n",
+			cch.Address(), cch.Address())
+		fmt.Println("Some queries was failed, press y for continue after debug test, k for kill carbon-clickhouse:")
+		in := bufio.NewScanner(os.Stdin)
+		in.Scan()
+		s := in.Text()
+		if s == "y" || s == "Y" {
+			break
+		} else if s == "k" || s == "K" {
+			cch.Stop()
+		}
+	}
 }

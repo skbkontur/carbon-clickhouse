@@ -52,39 +52,158 @@ func urlParse(rawurl string) (*url.URL, error) {
 	return m, err
 }
 
-func (u *Tagged) parseName(name string, days uint16,
+func ishex(c byte) bool {
+	switch {
+	case '0' <= c && c <= '9':
+		return true
+	case 'a' <= c && c <= 'f':
+		return true
+	case 'A' <= c && c <= 'F':
+		return true
+	}
+	return false
+}
+
+func unhex(c byte) byte {
+	switch {
+	case '0' <= c && c <= '9':
+		return c - '0'
+	case 'a' <= c && c <= 'f':
+		return c - 'a' + 10
+	case 'A' <= c && c <= 'F':
+		return c - 'A' + 10
+	}
+	return 0
+}
+
+func isPercentEscape(s string, i int) bool {
+	return i+2 < len(s) && ishex(s[i+1]) && ishex(s[i+2])
+}
+
+// unescape unescapes a string; the mode specifies
+// which section of the URL string is being unescaped.
+func unescape(s string) string {
+	first := strings.IndexByte(s, '%')
+	if first == -1 {
+		return s
+	}
+	var t strings.Builder
+	t.Grow(len(s))
+	t.WriteString(s[:first])
+
+LOOP:
+	for i := first; i < len(s); i++ {
+		switch s[i] {
+		case '%':
+			if len(s) < i+3 {
+				t.WriteString(s[i:])
+				break LOOP
+			}
+			if !isPercentEscape(s, i) {
+				t.WriteString(s[i : i+3])
+			} else {
+				t.WriteByte(unhex(s[i+1])<<4 | unhex(s[i+2]))
+			}
+			i += 2
+		default:
+			t.WriteByte(s[i])
+		}
+	}
+
+	return t.String()
+}
+
+// Unescape is needed, tags already sorted in in helper/tags/graphite.go, tags.Graphite
+func tagsParse(path string) (string, map[string]string, error) {
+	delim := strings.IndexRune(path, '?')
+	if delim < 1 {
+		return "", nil, fmt.Errorf("incomplete tags in '%s'", path)
+	}
+	name, err := url.PathUnescape(path[:delim])
+	if err != nil {
+		return "", nil, fmt.Errorf("invalid name tag in '%s'", path)
+	}
+	args := path[delim+1:]
+	tags := make(map[string]string)
+	for {
+		if delim = strings.IndexRune(args, '='); delim == -1 {
+			// corrupted tag
+			break
+		} else {
+			key := unescape(args[0:delim])
+			v := args[delim+1:]
+			if end := strings.IndexRune(v, '&'); end == -1 {
+				tags[key] = unescape(args[0:])
+				break
+			} else {
+				end += delim + 1
+				tags[key] = unescape(args[0:end])
+				args = args[end+1:]
+			}
+
+		}
+	}
+	return name, tags, nil
+}
+
+// Unescape is needed, tags already sorted in in helper/tags/graphite.go, tags.Graphite
+func tagsParseToSlice(path string) (string, []string, error) {
+	delim := strings.IndexRune(path, '?')
+	if delim < 1 {
+		return "", nil, fmt.Errorf("incomplete tags in '%s'", path)
+	}
+	name := unescape(path[:delim])
+	args := path[delim+1:]
+	tags := make([]string, 0, 32)
+
+	for {
+		if delim = strings.IndexRune(args, '='); delim == -1 {
+			// corrupted tag
+			break
+		} else {
+			v := args[delim+1:]
+			if end := strings.IndexRune(v, '&'); end == -1 {
+				tags = append(tags, unescape(args[0:]))
+				break
+			} else {
+				tags = append(tags, unescape(args[0:end+delim+1]))
+				end += delim + 1
+				args = args[end+1:]
+			}
+		}
+	}
+	return name, tags, nil
+}
+
+func (u *Tagged) parseName(name string, days uint16, version uint32,
 	// reusable buffers
 	tag1 []string, wb *RowBinary.WriteBuffer, tagsBuf *RowBinary.WriteBuffer) error {
 
-	m, err := urlParse(name)
+	mPath, tags, err := tagsParseToSlice(name)
 	if err != nil {
 		return err
 	}
-
-	version := uint32(time.Now().Unix())
 
 	wb.Reset()
 	tagsBuf.Reset()
 	tag1 = tag1[:0]
 
-	t := fmt.Sprintf("__name__=%s", m.Path)
+	t := "__name__=" + mPath
 	tag1 = append(tag1, t)
 	tagsBuf.WriteString(t)
+	tagsWritten := 1
 
 	// calc size for prevent buffer overflow
 	sizeTags := RowBinary.SIZE_INT16 /* days */ +
-		RowBinary.SIZE_INT64 + len(m.Path) +
+		RowBinary.SIZE_INT64 + len(mPath) +
 		RowBinary.SIZE_INT64 + len(name) +
 		RowBinary.SIZE_INT64 + //  tagsBuf.Len() not known at this step
 		RowBinary.SIZE_INT16 //version
 
 	// don't upload any other tag but __name__
 	// if either main metric (m.Path) or each metric (*) is ignored
-	ignoreAllButName := u.ignoredMetrics[m.Path] || u.ignoredMetrics["*"]
-	tagsWritten := 1
-	for k, v := range m.Query() {
-		t := fmt.Sprintf("%s=%s", k, v[0])
-
+	ignoreAllButName := u.ignoredMetrics[mPath] || u.ignoredMetrics["*"]
+	for _, t := range tags {
 		sizeTags += RowBinary.SIZE_INT16 /* days */ +
 			RowBinary.SIZE_INT64 + len(t) +
 			RowBinary.SIZE_INT64 + len(name) +
@@ -125,6 +244,8 @@ func (u *Tagged) parseFile(filename string, out io.Writer) (uint64, map[string]b
 	var err error
 	var n uint64
 
+	version := uint32(time.Now().Unix())
+
 	reader, err = RowBinary.NewReader(filename, false)
 	if err != nil {
 		return n, nil, err
@@ -139,6 +260,11 @@ func (u *Tagged) parseFile(filename string, out io.Writer) (uint64, map[string]b
 	defer tagsBuf.Release()
 
 	tag1 := make([]string, 0)
+
+	hashFunc := u.config.hashFunc
+	if hashFunc == nil {
+		hashFunc = keepOriginal
+	}
 
 LineLoop:
 	for {
@@ -155,7 +281,7 @@ LineLoop:
 		nameStr := unsafeString(name)
 
 		days := reader.Days()
-		key := strconv.Itoa(int(days)) + ":" + nameStr
+		key := strconv.Itoa(int(days)) + ":" + hashFunc(nameStr)
 		if u.existsCache.Exists(key) {
 			continue LineLoop
 		}
@@ -167,7 +293,7 @@ LineLoop:
 
 		n++
 
-		if err = u.parseName(nameStr, days, tag1, wb, tagsBuf); err != nil {
+		if err = u.parseName(nameStr, days, version, tag1, wb, tagsBuf); err != nil {
 			u.logger.Warn("parse",
 				zap.String("metric", nameStr), zap.String("type", "tagged"), zap.String("name", filename), zap.Error(err),
 			)

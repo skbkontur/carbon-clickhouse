@@ -2,6 +2,7 @@
 
 [data]
 path = "{{ .CCH_STORE_DIR }}"
+chunk-max-size = 128
 chunk-interval = "5s"
 chunk-auto-interval = ""
 
@@ -40,6 +41,21 @@ listen = "{{ .CCH_ADDR }}"
 enabled = true
 drop-future = "0s"
 drop-past = "0s"
+
+[udp]
+enabled = false
+
+[pickle]
+enabled = false
+
+[grpc]
+enabled = false
+
+[prometheus]
+enabled = false
+
+[telegraf_http_json]
+enabled = false
 
 [logging]
 file = "{{ .CCH_STORE_DIR }}/carbon-clickhouse.log"

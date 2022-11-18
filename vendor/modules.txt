@@ -35,7 +35,7 @@ github.com/lomik/stop
 # github.com/lomik/zapwriter v0.0.0-20170315193840-d4499a33b592
 ## explicit
 github.com/lomik/zapwriter
-# github.com/msaf1980/go-stringutils v0.0.11
+# github.com/msaf1980/go-stringutils v0.1.0
 ## explicit
 github.com/msaf1980/go-stringutils
 # github.com/pierrec/lz4 v2.5.2+incompatible
@@ -49,6 +49,7 @@ github.com/pmezard/go-difflib/difflib
 # github.com/stretchr/testify v1.7.0
 ## explicit
 github.com/stretchr/testify/assert
+github.com/stretchr/testify/require
 # github.com/zentures/cityhash v0.0.0-20131128155616-cdd6a94144ab
 ## explicit
 github.com/zentures/cityhash
