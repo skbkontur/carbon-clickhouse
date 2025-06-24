@@ -2,8 +2,6 @@ module github.com/lomik/carbon-clickhouse
 
 go 1.23.0
 
-toolchain go1.24.1
-
 require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/gogo/protobuf v1.3.2
