@@ -190,12 +190,14 @@ type TemplateDesc struct {
 }
 
 type TagConfig struct {
-	Enabled       bool              `toml:"enabled"`
-	Separator     string            `toml:"separator"`
-	Tags          []string          `toml:"tags"`
-	TagMap        map[string]string `toml:"-"`
-	Templates     []string          `toml:"templates"`
-	TemplateDescs []TemplateDesc    `toml:"-"`
+	Enabled         bool              `toml:"enabled"`
+	Separator       string            `toml:"separator"`
+	validationRegex string            `toml:"validation-regex"`
+	ValidationRegex *regexp.Regexp    `toml:"-"`
+	Tags            []string          `toml:"tags"`
+	TagMap          map[string]string `toml:"-"`
+	Templates       []string          `toml:"templates"`
+	TemplateDescs   []TemplateDesc    `toml:"-"`
 }
 
 func DisabledTagConfig() TagConfig {
@@ -223,6 +225,12 @@ func makeRegexp(filter string) *regexp.Regexp {
 func (cfg *TagConfig) Configure() error {
 	cfg.TagMap = make(map[string]string)
 	makeTagMap(cfg.TagMap, cfg.Tags)
+
+	var err error
+	cfg.ValidationRegex, err = regexp.Compile(cfg.validationRegex)
+	if err != nil {
+		return err
+	}
 
 	for _, s := range cfg.Templates {
 		dirtyTokens := strings.Split(s, " ")
