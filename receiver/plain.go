@@ -75,7 +75,7 @@ func (base *Base) PlainParseLine(p []byte, now uint32, buf *tags.GraphiteBuf) ([
 		value float64
 	)
 
-	if base.Tags.ValidationRegex != nil && base.Tags.ValidationRegex.Match(p[:i1]) {
+	if base.Tags.ValidationRegexCompiled != nil && base.Tags.ValidationRegexCompiled.Match(p[:i1]) {
 		return nil, 0, 0, errors.New("message contains invalid characters: '" + unsafeString(p) + "'")
 	}
 
