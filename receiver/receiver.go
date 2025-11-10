@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/lomik/carbon-clickhouse/helper/RowBinary"
@@ -85,6 +86,16 @@ func ConcatChar(concat string) Option {
 	return func(r interface{}) error {
 		if t, ok := r.(*Base); ok {
 			t.concatCharacter = concat
+		}
+		return nil
+	}
+}
+
+// ConcatChar creates option for New constructor
+func ValidationRegex(regex *regexp.Regexp) Option {
+	return func(r interface{}) error {
+		if t, ok := r.(*Base); ok {
+			t.validationRegex = regex
 		}
 		return nil
 	}

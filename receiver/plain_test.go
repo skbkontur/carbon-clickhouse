@@ -309,7 +309,7 @@ func TestPlainParseLine(t *testing.T) {
 		{"app:service:metric;env=prod:primary 42.15 1422642189\n", "app:service:metric?env=prod%3Aprimary", 42.15, 1422642189},
 	}
 
-	baseWithValidation := &Base{Tags: tags.TagConfig{ValidationRegexCompiled: regexp.MustCompile(`[^a-zA-Z0-9.;\-_:=]{1}`)}}
+	baseWithValidation := &Base{validationRegex: regexp.MustCompile(`[^a-zA-Z0-9.;\-_:=]{1}`)}
 	for _, p := range tableWithValidation {
 		name, value, timestamp, err := baseWithValidation.PlainParseLine([]byte(p.b), now, &tagBuf)
 		if p.name == "" {

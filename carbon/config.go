@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"regexp"
 	"strings"
 	"time"
 
@@ -20,11 +21,12 @@ const (
 )
 
 type commonConfig struct {
-	MetricPrefix   string           `toml:"metric-prefix"`
-	MetricInterval *config.Duration `toml:"metric-interval"`
-	MetricEndpoint string           `toml:"metric-endpoint"`
-	MaxCPU         int              `toml:"max-cpu"`
-	Enabled        bool             `toml:"enabled"`
+	MetricPrefix    string           `toml:"metric-prefix"`
+	MetricInterval  *config.Duration `toml:"metric-interval"`
+	MetricEndpoint  string           `toml:"metric-endpoint"`
+	MaxCPU          int              `toml:"max-cpu"`
+	Enabled         bool             `toml:"enabled"`
+	ValidationRegex string           `toml:"validation-regex"`
 }
 
 type clickhouseConfig struct {
@@ -276,6 +278,12 @@ func ReadConfig(filename string, exactConfig bool) (*Config, error) {
 			if len(undecoded) > 0 {
 				return nil, fmt.Errorf("Config file (%s) contains unknown keys: %q", filename, undecoded)
 			}
+		}
+	}
+
+	if cfg.Common.ValidationRegex != "" {
+		if _, err := regexp.Compile(cfg.Common.ValidationRegex); err != nil {
+			return nil, err
 		}
 	}
 

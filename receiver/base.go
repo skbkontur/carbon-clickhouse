@@ -3,6 +3,7 @@ package receiver
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -36,6 +37,7 @@ type Base struct {
 	dropPastSeconds    uint32
 	dropTooLongLimit   uint16
 	readTimeoutSeconds uint32
+	validationRegex    *regexp.Regexp
 	writeChan          chan *RowBinary.WriteBuffer
 	logger             *zap.Logger
 	Tags               tags.TagConfig
