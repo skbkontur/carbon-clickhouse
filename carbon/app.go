@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -193,8 +192,6 @@ func (app *App) Start() (err error) {
 
 	app.writeChan = make(chan *RowBinary.WriteBuffer)
 
-	validationRegex := regexp.MustCompile(app.Config.Common.ValidationRegex)
-
 	/* WRITER start */
 	uploaders := make([]string, 0, len(conf.Upload))
 	for t := range conf.Upload {
@@ -259,7 +256,7 @@ func (app *App) Start() (err error) {
 			receiver.DropPast(uint32(conf.Tcp.DropPast.Value().Seconds())),
 			receiver.DropLongerThan(conf.Tcp.DropLongerThan),
 			receiver.ReadTimeout(uint32(conf.Tcp.ReadTimeout.Value().Seconds())),
-			receiver.ValidationRegex(validationRegex),
+			receiver.ValidationRegex(app.Config.Common.ValidationRegex),
 		)
 
 		if err != nil {
@@ -278,7 +275,7 @@ func (app *App) Start() (err error) {
 			receiver.DropFuture(uint32(conf.Udp.DropFuture.Value().Seconds())),
 			receiver.DropPast(uint32(conf.Udp.DropPast.Value().Seconds())),
 			receiver.DropLongerThan(conf.Udp.DropLongerThan),
-			receiver.ValidationRegex(validationRegex),
+			receiver.ValidationRegex(app.Config.Common.ValidationRegex),
 		)
 
 		if err != nil {
@@ -297,7 +294,7 @@ func (app *App) Start() (err error) {
 			receiver.DropFuture(uint32(conf.Pickle.DropFuture.Value().Seconds())),
 			receiver.DropPast(uint32(conf.Pickle.DropPast.Value().Seconds())),
 			receiver.DropLongerThan(conf.Pickle.DropLongerThan),
-			receiver.ValidationRegex(validationRegex),
+			receiver.ValidationRegex(app.Config.Common.ValidationRegex),
 		)
 
 		if err != nil {
@@ -315,7 +312,7 @@ func (app *App) Start() (err error) {
 			receiver.DropFuture(uint32(conf.Grpc.DropFuture.Value().Seconds())),
 			receiver.DropPast(uint32(conf.Grpc.DropPast.Value().Seconds())),
 			receiver.DropLongerThan(conf.Grpc.DropLongerThan),
-			receiver.ValidationRegex(validationRegex),
+			receiver.ValidationRegex(app.Config.Common.ValidationRegex),
 		)
 
 		if err != nil {
@@ -333,7 +330,7 @@ func (app *App) Start() (err error) {
 			receiver.DropFuture(uint32(conf.Prometheus.DropFuture.Value().Seconds())),
 			receiver.DropPast(uint32(conf.Prometheus.DropPast.Value().Seconds())),
 			receiver.DropLongerThan(conf.Prometheus.DropLongerThan),
-			receiver.ValidationRegex(validationRegex),
+			receiver.ValidationRegex(app.Config.Common.ValidationRegex),
 		)
 
 		if err != nil {
@@ -352,7 +349,7 @@ func (app *App) Start() (err error) {
 			receiver.DropPast(uint32(conf.TelegrafHttpJson.DropPast.Value().Seconds())),
 			receiver.DropLongerThan(conf.TelegrafHttpJson.DropLongerThan),
 			receiver.ConcatChar(conf.TelegrafHttpJson.Concat),
-			receiver.ValidationRegex(validationRegex),
+			receiver.ValidationRegex(app.Config.Common.ValidationRegex),
 		)
 
 		if err != nil {
