@@ -91,7 +91,7 @@ func ConcatChar(concat string) Option {
 	}
 }
 
-// ConcatChar creates option for New constructor
+// ValidationRegex creates option for New constructor
 func ValidationRegex(regex string) Option {
 	return func(r interface{}) error {
 		if t, ok := r.(*Base); ok {

@@ -283,7 +283,7 @@ func ReadConfig(filename string, exactConfig bool) (*Config, error) {
 
 	if cfg.Common.ValidationRegex != "" {
 		if _, err := regexp.Compile(cfg.Common.ValidationRegex); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid regex in validation-regex option: %s", err.Error())
 		}
 	}
 

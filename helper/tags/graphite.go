@@ -224,11 +224,6 @@ func (cfg *TagConfig) Configure() error {
 	cfg.TagMap = make(map[string]string)
 	makeTagMap(cfg.TagMap, cfg.Tags)
 
-	var err error
-	if err != nil {
-		return err
-	}
-
 	for _, s := range cfg.Templates {
 		dirtyTokens := strings.Split(s, " ")
 		tokens := dirtyTokens[:0]

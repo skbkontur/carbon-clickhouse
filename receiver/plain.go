@@ -70,16 +70,11 @@ func (base *Base) PlainParseLine(p []byte, now uint32, buf *tags.GraphiteBuf) ([
 		i3--
 	}
 
-	var (
-		err   error
-		value float64
-	)
-
 	if base.validationRegex != nil && base.validationRegex.Match(p[:i1]) {
 		return nil, 0, 0, errors.New("message contains invalid characters: '" + unsafeString(p) + "'")
 	}
 
-	value, err = strconv.ParseFloat(unsafeString(p[i1+1:i2]), 64)
+	value, err := strconv.ParseFloat(unsafeString(p[i1+1:i2]), 64)
 	if err != nil || math.IsNaN(value) {
 		return nil, 0, 0, errors.New("bad message: '" + unsafeString(p) + "'")
 	}
