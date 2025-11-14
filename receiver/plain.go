@@ -70,8 +70,8 @@ func (base *Base) PlainParseLine(p []byte, now uint32, buf *tags.GraphiteBuf) ([
 		i3--
 	}
 
-	if base.isMatchedByValidationRegex(p[:i1]) {
-		return nil, 0, 0, errors.New("metric name matched by validation regex: '" + unsafeString(p) + "'")
+	if base.isMatchedByBlacklistRegex(p[:i1]) {
+		return nil, 0, 0, errors.New("metric name matched by blacklist regex: '" + unsafeString(p) + "'")
 	}
 
 	value, err := strconv.ParseFloat(unsafeString(p[i1+1:i2]), 64)

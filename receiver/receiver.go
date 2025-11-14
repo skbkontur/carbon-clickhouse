@@ -91,12 +91,12 @@ func ConcatChar(concat string) Option {
 	}
 }
 
-// ValidationRegex creates option for New constructor
-func ValidationRegex(regex string) Option {
+// BlacklistRegex creates option for New constructor
+func BlacklistRegex(regex string) Option {
 	return func(r interface{}) error {
 		if t, ok := r.(*Base); ok {
 			if regex != "" {
-				t.validationRegex = regexp.MustCompile(regex)
+				t.blacklistRegex = regexp.MustCompile(regex)
 			}
 		}
 		return nil

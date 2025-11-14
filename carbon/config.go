@@ -21,12 +21,12 @@ const (
 )
 
 type commonConfig struct {
-	MetricPrefix    string           `toml:"metric-prefix"`
-	MetricInterval  *config.Duration `toml:"metric-interval"`
-	MetricEndpoint  string           `toml:"metric-endpoint"`
-	MaxCPU          int              `toml:"max-cpu"`
-	Enabled         bool             `toml:"enabled"`
-	ValidationRegex string           `toml:"validation-regex"`
+	MetricPrefix   string           `toml:"metric-prefix"`
+	MetricInterval *config.Duration `toml:"metric-interval"`
+	MetricEndpoint string           `toml:"metric-endpoint"`
+	MaxCPU         int              `toml:"max-cpu"`
+	Enabled        bool             `toml:"enabled"`
+	BlacklistRegex string           `toml:"blacklist-regex"`
 }
 
 type clickhouseConfig struct {
@@ -281,9 +281,9 @@ func ReadConfig(filename string, exactConfig bool) (*Config, error) {
 		}
 	}
 
-	if cfg.Common.ValidationRegex != "" {
-		if _, err := regexp.Compile(cfg.Common.ValidationRegex); err != nil {
-			return nil, fmt.Errorf("invalid regex in validation-regex option: %s", err.Error())
+	if cfg.Common.BlacklistRegex != "" {
+		if _, err := regexp.Compile(cfg.Common.BlacklistRegex); err != nil {
+			return nil, fmt.Errorf("invalid regex in blacklist-regex option: %s", err.Error())
 		}
 	}
 
