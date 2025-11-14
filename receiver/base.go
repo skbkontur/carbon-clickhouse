@@ -19,15 +19,16 @@ const droppedListSize = 1000
 type Base struct {
 	stop.Struct
 	stat struct {
-		samplesReceived    uint64 // atomic
-		messagesReceived   uint64 // atomic
-		metricsReceived    uint64 // atomic
-		errors             uint64 // atomic
-		active             int64  // atomic
-		incompleteReceived uint64 // atomic
-		futureDropped      uint64 // atomic
-		pastDropped        uint64 // atomic
-		tooLongDropped     uint64 // atomic
+		samplesReceived        uint64 // atomic
+		messagesReceived       uint64 // atomic
+		metricsReceived        uint64 // atomic
+		errors                 uint64 // atomic
+		active                 int64  // atomic
+		incompleteReceived     uint64 // atomic
+		futureDropped          uint64 // atomic
+		pastDropped            uint64 // atomic
+		tooLongDropped         uint64 // atomic
+		validationRegexDropped uint64 // atomic
 	}
 	droppedList        [droppedListSize]string
 	droppedListNext    int
@@ -82,6 +83,14 @@ func (base *Base) isDrop(nowTime uint32, metricTime uint32) bool {
 func (base *Base) isDropMetricNameTooLong(name string) bool {
 	if base.dropTooLongLimit != 0 && len(name) > int(base.dropTooLongLimit) {
 		atomic.AddUint64(&base.stat.tooLongDropped, 1)
+		return true
+	}
+	return false
+}
+
+func (base *Base) isMatchedByValidationRegex(name []byte) bool {
+	if base.validationRegex != nil && base.validationRegex.Match(name) {
+		atomic.AddUint64(&base.stat.validationRegexDropped, 1)
 		return true
 	}
 	return false
@@ -145,6 +154,8 @@ func (base *Base) SendStat(send func(metric string, value float64), fields ...st
 			sendUint64Counter(send, f, &base.stat.pastDropped)
 		case "tooLongDropped":
 			sendUint64Counter(send, f, &base.stat.tooLongDropped)
+		case "validationRegexDropped":
+			sendUint64Counter(send, f, &base.stat.validationRegexDropped)
 		case "errors":
 			sendUint64Counter(send, f, &base.stat.errors)
 		case "active":
